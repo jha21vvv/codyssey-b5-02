@@ -14,7 +14,7 @@ import time
 
 # [1차]: 타입 어노테이션을 위한 표준 타이핑 심볼을 가져옵니다.
 # [2차]: 함수의 입력과 출력 상자에 라벨을 붙여줍니다.
-from typing import List, Optional
+from typing import Optional
 
 # [1차]: 비즈니스 로직을 수행하는 MiniGitRepository 클래스를 가져옵니다.
 # [2차]: 명령을 실제로 수행해 줄 작업실 총괄 지배인을 불러옵니다.
