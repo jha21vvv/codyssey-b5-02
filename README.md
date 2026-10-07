@@ -115,3 +115,145 @@ OK
 - **[Step 5. REFINE]**: [REPORT.md](file:///c:/Users/안재현/Documents/24_code/2609_codyssey/codyssey-b5-02/REPORT.md) (타임스탬프 동률 안정 정렬 보존, 한글 유니코드, 따옴표 파싱 엣지케이스 방어 리포트)
 - **[Step 6. NOTEBOOKLM PROMPT]**: [NOTEBOOKLM_GUIDE.md](file:///c:/Users/안재현/Documents/24_code/2609_codyssey/codyssey-b5-02/NOTEBOOKLM_GUIDE.md) (NotebookLM 팟캐스트 기획 프롬프트 및 원천 자료 키트)
 - **[Step 7. 2-TIER COMMENTS]**: 전체 소스 코드 라인별 `[1차: 기술적/문법적 설명]` + `[2차: 주니어 눈높이 현실 비유]` 주석 100% 반영 완료
+
+---
+
+## 🎯 7. [평가자용] 기능 검증 및 라이브 시연 시나리오 (Demo Guide)
+
+과제 요구사항에 명시된 **저장소 초기화, 브랜치 관리, 위상 정렬 로그, 수제 병합 정렬, 역색인 검색, 최단 경로 BFS, 조상 탐색, 예외 처리**의 전 과정을 실제 Git 소프트웨어 개발 작업 이력을 기록하며 직접 검증할 수 있는 시연 시나리오입니다.
+
+### 7.1 실행 시작
+터미널에서 프로그램 엔트리 포인트를 실행합니다:
+```bash
+python main.py
+```
+`mini-git>` 프롬프트가 나타나면 아래 명령어를 순서대로 입력합니다.
+
+---
+
+### 7.2 단계별 시연 스토리보드 (실제 개발 이력 기록)
+> ⚠️ `python main.py`를 실행하면 자동으로 `mini-git>` 프롬프트가 뜹니다. 아래 명령어는 **`mini-git>`을 제외한 명령어 본문만 복사**하여 입력하세요.
+
+#### 1단계: 저장소 초기화 및 기본 커밋 기록 (INIT & COMMIT)
+```text
+INIT "Alex Developer"
+# ✅ 출력: Initialized empty Mini Git repository for Alex Developer. Switched to branch 'main'.
+
+COMMIT "Initial commit: create README.md and license"
+# ✅ 1번째 커밋 생성 (root 커밋, 해시 발급 예: [main a1b2c3d4])
+
+COMMIT "feat: setup project architecture and core models"
+# ✅ 2번째 커밋 생성 (main 브랜치에 직렬 연결)
+```
+
+#### 2단계: 기능 브랜치 생성 및 분기 작업 기록 (BRANCH & SWITCH)
+```text
+BRANCH feature-login
+# ✅ 출력: Created branch 'feature-login' at <2번째_커밋_해시>
+
+SWITCH feature-login
+# ✅ 출력: Switched to branch 'feature-login'
+
+COMMIT "feat: implement oauth login authentication"
+# ✅ feature-login 브랜치에 3번째 커밋 생성
+
+COMMIT "test: add unit tests for login module"
+# ✅ feature-login 브랜치에 4번째 커밋 생성
+```
+
+#### 3단계: 메인 브랜치 복귀 및 병렬 작업 기록 (DAG 분기 형성)
+```text
+SWITCH main
+# ✅ 출력: Switched to branch 'main'
+
+COMMIT "docs: update API documentation and diagrams"
+# ✅ main 브랜치에 5번째 커밋 생성 (feature-login과 공통 부모로부터 갈라져 나온 병렬 커밋)
+```
+
+#### 4단계: [과제 핵심 1] 부모가 먼저 출력되는 위상 정렬 로그 (LOG)
+```text
+LOG
+```
+* **검증 포인트**:
+  * 최신순 나열이 아니라, **"부모 커밋이 항상 자식 커밋보다 먼저 출력"**(Kahn's Topological Sort)되는 것을 확인합니다.
+  * 루트 커밋(`Initial commit`)이 가장 위에 출력되고, 그 자식들이 순서대로 출력됩니다.
+  * 각 커밋마다 `commit <hash>`, `Author:`, `Date:`, `Parents:`, `메시지`가 완벽하게 식별됩니다.
+
+#### 5단계: [과제 핵심 2] 순수 수제 Merge Sort 정렬 (LOG --sort-by)
+> ⚠️ `sorted()`나 `list.sort()` 없이 자체 구현한 $O(N \log N)$ 병합 정렬로 정렬됩니다.
+```text
+LOG --sort-by=date
+# ✅ 타임스탬프(오름차순) 기준 정렬 출력
+
+LOG --sort-by=author
+# ✅ 작성자 알파벳 순 기준 정렬 출력
+```
+
+#### 6단계: [과제 핵심 3] O(1) 역색인(Inverted Index) 검색 (SEARCH)
+> ⚠️ 전체 커밋 순회($O(N)$) 없이 토큰화된 역색인 해시맵에서 $O(1)$로 즉시 조회합니다.
+```text
+# 1) 키워드 역색인 검색 (대소문자 무관 토큰 매칭)
+SEARCH login
+# ✅ 'feat: implement oauth login authentication', 'test: add unit tests for login module' 2개 커밋 즉시 반환
+
+SEARCH documentation
+# ✅ 'docs: update API documentation and diagrams' 커밋 즉시 반환
+
+# 2) 작성자 역색인 검색
+SEARCH --author="Alex Developer"
+# ✅ Alex Developer가 작성한 모든 커밋 즉시 반환
+```
+
+#### 7단계: [과제 핵심 4] 무방향 최단 경로(BFS) 및 조상 탐색 (PATH & ANCESTORS)
+> ⚠️ `LOG` 출력에서 확인한 실제 커밋 해시(앞 8자리)를 복사하여 아래 `<hash>` 자리에 넣어 실행합니다.
+```text
+# 1) 두 브랜치 끝 커밋 간의 무방향 최단 경로 (공통 부모를 거쳐 돌아가는 최소 간선 경로)
+PATH <5번째_커밋_해시> <4번째_커밋_해시>
+# ✅ 출력 예시: 5번째_해시 -> 2번째_해시(공통부모) -> 3번째_해시 -> 4번째_해시
+
+# 2) 특정 커밋의 모든 조상 역추적 탐색
+ANCESTORS <4번째_커밋_해시>
+# ✅ 4번째 커밋의 부모(3번째), 조부모(2번째), 루트(1번째) 커밋이 빠짐없이 역추적되어 출력됨
+```
+
+#### 8단계: [과제 핵심 5] 예외 처리 및 표준 에러 메시지 검증
+```text
+SWITCH nonexistent
+# ✅ 출력: Unknown branch: nonexistent
+
+COMMIT
+# ✅ 출력: Invalid args: COMMIT requires <message>
+
+ANCESTORS 99999999
+# ✅ 출력: Unknown commit: 99999999
+```
+
+#### 9단계: 종료
+```text
+quit
+# ✅ 프로그램 안전 종료
+```
+
+---
+
+### 7.3 평가자 10초 쾌속 복사/붙여넣기 테스트 팩
+터미널에서 `python main.py` 실행 후, 아래 텍스트 블록 전체를 복사하여 터미널 창에 붙여넣기(Paste)하면 기본 시나리오가 자동으로 한 번에 수행됩니다:
+
+```text
+INIT "Evaluator"
+COMMIT "Initial commit: create README.md and core system"
+COMMIT "feat: implement DAG commit graph and models"
+BRANCH feature-auth
+SWITCH feature-auth
+COMMIT "feat: implement oauth token authentication logic"
+COMMIT "test: add comprehensive unit test for auth module"
+SWITCH main
+COMMIT "docs: write architecture documentation and user manual"
+LOG
+LOG --sort-by=date
+SEARCH auth
+SEARCH --author=Evaluator
+SWITCH unknown-branch
+```
+*(위 일괄 입력 후 화면에 출력된 해시를 보고 `PATH <해시1> <해시2>` 또는 `ANCESTORS <해시>`를 입력하여 경로/조상 탐색을 즉시 검증할 수 있습니다.)*
+

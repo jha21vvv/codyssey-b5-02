@@ -1,0 +1,193 @@
+def find_shortest_path(self, start_hash: str, end_hash: str) -> Optional[List[str]]:
+        """Finds the shortest path between start_hash and end_hash in the undirected graph."""
+        # [1차]: 시작 노드나 종료 노드가 저장소에 존재하지 않으면 None을 반환합니다.
+        # [2차]: 출발역이나 도착역이 지도에 없으면 길을 찾을 수 없다고 알립니다.
+        # [3차 예시]: 'B'와 'D' 모두 저장소에 존재하므로 통과합니다.
+        if start_hash not in self._commits or end_hash not in self._commits:
+            return None
+
+        # [1차]: 출발지와 목적지가 동일한 경우 자기 자신으로 구성된 1노드 경로를 즉시 반환합니다.
+        # [2차]: 출발역과 도착역이 같으면 이동할 필요 없이 현재 역만 돌려줍니다.
+        # [3차 예시]: start_hash('B') != end_hash('D')이므로 통과합니다.
+        if start_hash == end_hash:
+            return [start_hash]
+
+        # [1차]: 양방향 탐색을 위해 모든 연결을 무방향 인접 집합 맵으로 구성합니다.
+        # [2차]: 모든 일방통행 골목길을 양방향 자유 통행 도로망으로 지도에 새로 그립니다.
+        # [3차 예시]: adj = {'A': set(), 'B': set(), 'C': set(), 'D': set()} 생성
+        adj: Dict[str, Set[str]] = {h: set() for h in self._commits}
+        for commit in self._commits.values():
+            for p_hash in commit.parents:
+                if p_hash in self._commits:
+                    # [1차]: 커밋에서 부모로의 경로를 인접 집합에 추가합니다.
+                    # [2차]: 자식 집에서 부모님 집으로 가는 길을 연결합니다.
+                    # [3차 예시]: B->A, C->A, D->C 방향 길을 추가합니다.
+                    adj[commit.hash].add(p_hash)
+                    # [1차]: 부모에서 커밋으로의 역방향 경로도 인접 집합에 추가합니다.
+                    # [2차]: 부모님 집에서 자식 집으로 되돌아오는 길도 연결합니다.
+                    # [3차 예시]: A->B, A->C, C->D 반대 방향 길도 추가합니다.
+                    #            -> 완성된 adj: {'A': {'B', 'C'}, 'B': {'A'}, 'C': {'A', 'D'}, 'D': {'C'}}
+                    adj[p_hash].add(commit.hash)
+
+        # [1차]: BFS 탐색 경로를 보관할 deque 큐를 생성하고 시작 경로를 삽입합니다.
+        # [2차]: 출발점에서 뻗어나갈 탐색 경로들을 담아둘 대기열 바구니를 만듭니다.
+        # [3차 예시]: queue = deque([['B']]) ('B'에서 출발하는 첫 번째 경로 리스트를 큐에 투입)
+        queue: Deque[List[str]] = deque([[start_hash]])
+
+        # [1차]: 각 노드에 도달한 최단 거리(홉 수)를 기록하는 딕셔너리입니다.
+        # [2차]: 각 역마다 가장 적게 걸린 이동 정거장 수를 메모해두는 표입니다.
+        # [3차 예시]: visited_dist = {'B': 0} (출발점 B까지의 거리는 0)
+        visited_dist: Dict[str, int] = {start_hash: 0}
+
+        # [1차]: 처음으로 목적지에 도달했을 때의 최소 간선 거리(홉 수)를 저장할 변수입니다.
+        # [2차]: 도착역에 처음 도착했을 때 찍힌 최소 정거장 수를 기억할 메모칸입니다.
+        # [3차 예시]: target_distance = None (아직 D에 도착 못 함)
+        target_distance: Optional[int] = None
+
+        # [1차]: 동일한 최단 거리를 가진 모든 도달 경로들을 모아둘 후보군 리스트입니다.
+        # [2차]: 같은 최소 정거장 수로 도착한 우수한 경로들을 모아두는 후보 바구니입니다.
+        # [3차 예시]: candidate_paths = [] (도착 경로 후보 바구니)
+        candidate_paths: List[List[str]] = []
+
+        # [1차]: 큐가 빌 때까지 계층별 너비 우선 탐색(BFS)을 수행합니다.
+        # [2차]: 탐색할 경로가 남아있는 동안 물결이 퍼져나가듯 한 홉씩 전진합니다.
+        while queue:
+            # [1차]: 대기열 맨 앞에서 탐색 경로를 하나 꺼냅니다.
+            # [2차]: 대기열 맨 앞의 탐색 루트를 꺼내어 발걸음을 옮깁니다.
+            # [3차 예시]: (1회전) path = ['B'] 꺼냄
+            path = queue.popleft()
+
+            # [1차]: 현재 경로의 마지막 방문 노드(현재 위치)를 추출합니다.
+            # [2차]: 방금 도착한 현재 역의 이름을 확인합니다.
+            # [3차 예시]: (1회전) curr = 'B'
+            curr = path[-1]
+
+            # [1차]: 현재 경로의 간선 수(노드 수 - 1)를 계산합니다.
+            # [2차]: 출발역부터 여기까지 몇 정거장을 거쳐왔는지 셉니다.
+            # [3차 예시]: (1회전) dist = len(['B']) - 1 = 0
+            dist = len(path) - 1
+
+            # [1차]: 이미 발견된 최단 거리보다 더 긴 탐색 경로는 조기 가지치기(Pruning)합니다.
+            # [2차]: 이미 찾은 지름길보다 더 멀리 돌아가는 길은 미련 없이 버립니다.
+            # [3차 예시]: (1회전) 아직 target_distance가 None이므로 통과
+            if target_distance is not None and dist > target_distance:
+                break
+
+            # [1차]: 현재 노드가 목적지(end_hash)에 도달한 경우 후보군에 추가합니다.
+            # [2차]: 드디어 도착역에 도달했다면 이 경로를 합격자 명단에 등록합니다.
+            # [3차 예시]: (1회전) curr('B') != end_hash('D')이므로 통과
+            if curr == end_hash:
+                target_distance = dist
+                candidate_paths.append(path)
+                continue
+
+            # [1차]: 현재 노드와 연결된 모든 이웃 노드들을 순회합니다.
+            # [2차]: 현재 역에서 갈아탈 수 있는 모든 다음 역들을 둘러봅니다.
+            # [3차 예시]: (1회전) adj['B'] = {'A'} 순회 시작
+            for neighbor in adj[curr]:
+                # [1차]: 다음 노드까지의 간선 거리를 계산합니다.
+                # [2차]: 다음 역까지 가면 총 몇 정거장이 되는지 계산합니다.
+                # [3차 예시]: (1회전) neighbor_dist = 0 + 1 = 1 (A까지 1정거장)
+                neighbor_dist = dist + 1
+
+                # [1차]: 다음 거리가 이미 확정된 최단 거리보다 크면 탐색을 건너뜁니다.
+                # [2차]: 다음 걸음이 이미 찾은 최단 거리보다 길어지면 건너뜁니다.
+                if target_distance is not None and neighbor_dist > target_distance:
+                    continue
+
+                # [1차]: 아직 방문하지 않았거나 동일한 최소 거리로 처음 도달한 경로만 큐에 추가합니다.
+                # [2차]: 아직 안 가본 역이거나 똑같은 최단 기록으로 도착한 길만 대기열에 넣습니다.
+                # [3차 예시]: (1회전) 'A'는 처음 방문! -> visited_dist['A'] = 1 기록, queue에 ['B', 'A'] 추가
+                #            👉 (2회전) path=['B', 'A'] 꺼냄 -> 이웃 'C' 방문 -> queue에 ['B', 'A', 'C'] 추가 (dist=2)
+                #            👉 (3회전) path=['B', 'A', 'C'] 꺼냄 -> 이웃 'D' 방문 -> queue에 ['B', 'A', 'C', 'D'] 추가 (dist=3)
+                #            👉 (4회전) path=['B', 'A', 'C', 'D'] 꺼냄 -> curr='D' 도착!
+                #                       target_distance = 3 확정, candidate_paths에 ['B', 'A', 'C', 'D'] 저장!
+                if neighbor not in visited_dist or visited_dist[neighbor] == neighbor_dist:
+                    visited_dist[neighbor] = neighbor_dist
+                    queue.append(path + [neighbor])
+
+        # [1차]: 목적지에 도달 가능한 경로가 전혀 없으면 None을 반환합니다.
+        # [2차]: 끊어진 섬처럼 도착역에 갈 수 있는 길이 아예 없다면 없다고 보고합니다.
+        # [3차 예시]: candidate_paths에 경로가 있으므로 통과합니다.
+        if not candidate_paths:
+            return None
+
+        # [1차]: 동일한 최단 경로 후보들 중 'hash1->hash2->...' 포맷의 사전순 최소 경로를 선택합니다.
+        # [2차]: 정거장 수가 똑같다면 경로 문자열이 가나다순으로 가장 앞서는 예쁜 길을 최종 선정합니다.
+        # [3차 예시]: 최단 경로가 여러 개일 경우 'B->A->C->D' 문자열 기준 사전순 정렬
+        sorted_candidates = merge_sort(
+            candidate_paths,
+            key=lambda p: "->".join(p)
+        )
+
+        # [1차]: 사전순으로 가장 작은 0번째 최단 경로를 반환합니다.
+        # [2차]: 1등으로 선정된 최고의 최단 경로를 건네줍니다.
+        # [3차 예시]: 최종 반환: ['B', 'A', 'C', 'D'] (B에서 A로 올라갔다가 C 거쳐 D로 도착하는 3홉 최단 경로)
+        return sorted_candidates[0]
+
+    # [1차]: 특정 커밋으로부터 부모 포인터를 역추적하여 연결된 모든 과거 조상 커밋 해시를 반환합니다.
+    # [2차]: '내 커밋'에서 출발해 직속 부모 -> 부모의 부모 -> 최초 루트 커밋까지 과거 이력을 연쇄 추적(BFS)합니다.
+    # [3차 예시 기준]: 커밋 A ─┬─> B
+    #                        └─> C ──> D 에서 commit_hash = 'D'의 조상을 찾는 과정을 추적합니다.
+    def get_ancestors(self, commit_hash: str) -> List[str]:
+        """Finds all ancestor commit hashes reachable via parent pointers."""
+        # [1차]: 대상 커밋이 저장소에 없으면 빈 리스트를 반환합니다.
+        # [2차]: 존재하지 않는 커밋 해시가 들어오면 바로 빈 결과를 반환해 에러를 방지합니다.
+        # [3차 예시]: 'D'가 저장소에 존재하므로 통과합니다.
+        if commit_hash not in self._commits:
+            return []
+
+        # [1차]: 탐색 과정에서 발견된 모든 조상 커밋 해시를 순서대로 누적할 결과 리스트입니다.
+        # [2차]: "찾아낸 과거 커밋들"을 차곡차곡 담아둘 최종 바구니입니다.
+        # [3차 예시]: ancestors = [] (결과 바구니 초기화)
+        ancestors: List[str] = []
+
+        # [1차]: 머지(Merge) 커밋 등으로 인해 동일한 부모를 중복 방문하거나 무한 루프에 빠지는 것을 막는 집합(Set)입니다.
+        # [2차]: "이미 확인한 커밋 해시 목록"입니다. 중복 검사와 무한 루프를 O(1) 속도로 차단합니다.
+        # [3차 예시]: visited = set() (방문 세트 초기화)
+        visited: Set[str] = set()
+
+        # [1차]: 너비 우선 탐색(BFS) 방식으로 부모들을 세대별로 차례차례 꺼내기 위한 선입선출(FIFO) 큐입니다.
+        # [2차]: "다음에 부모를 타고 올라갈 커밋 대기열"입니다.
+        # [3차 예시]: queue = deque() (탐색 대기열 생성)
+        queue: Deque[str] = deque()
+
+        # [1차]: 시작 커밋의 직속 부모(1세대 위)들을 먼저 큐와 방문 세트에 등록합니다.
+        # [2차]: 탐색 시작: 내 바로 위 직속 부모들을 대기열(queue)에 1순위로 집어넣습니다.
+        # [3차 예시]: 'D'의 부모는 ['C'] 하나뿐 -> visited = {'C'}, queue = deque(['C'])
+        start_commit = self._commits[commit_hash]
+        for p in start_commit.parents:
+            if p not in visited:
+                visited.add(p)
+                queue.append(p)
+
+        # [1차]: 큐에 조사할 부모 커밋이 남아있는 동안, 과거로 꼬리를 물며 계속 거슬러 올라갑니다.
+        # [2차]: 대기열에 과거 커밋이 남아있다면 계속 루프를 돌며 윗 세대를 추적합니다.
+        # [3차 예시]: queue에 ['C']가 있으므로 while문 1회전 시작!
+        while queue:
+            # [1차]: 대기열의 맨 앞(가장 가까운 세대) 커밋 해시를 하나 꺼냅니다.
+            # [2차]: 대기열 맨 앞에서 커밋 하나를 꺼냅니다.
+            # [3차 예시]: (1회전) curr_hash = 'C' 꺼냄 -> queue = deque([])
+            curr_hash = queue.popleft()
+
+            # [1차]: 현재 꺼낸 커밋을 최종 조상 결과 목록에 추가합니다.
+            # [2차]: 이 커밋은 조상으로 판명되었으니 결과 바구니에 담습니다.
+            # [3차 예시]: (1회전) ancestors = ['C'] (D의 첫 번째 조상 발견!)
+            ancestors.append(curr_hash)
+
+            # [1차]: 꺼낸 커밋의 부모(한 세대 더 위)들을 조회하여 아직 방문하지 않은 부모를 큐에 연쇄 등록합니다.
+            # [2차]: "방금 확인한 커밋의 부모(한 단계 더 과거 커밋)"가 있다면, 걔들도 대기열에 새로 추가합니다.
+            # [3차 예시]: (1회전) 'C'의 부모 self._commits['C'].parents = ['A'] 확인!
+            #            'A'는 미방문이므로 visited에 {'C', 'A'} 등록, queue에 'A' 투입 -> queue = deque(['A'])
+            #            👉 (2회전) curr_hash = 'A' 꺼냄 -> ancestors = ['C', 'A'] (두 번째 조상 발견!)
+            #            👉 'A'의 부모는 [] (루트이므로 없음) -> queue가 텅 비어서 while문 종료!
+            if curr_hash in self._commits:
+                for p in self._commits[curr_hash].parents:
+                    if p not in visited:
+                        visited.add(p)
+                        queue.append(p)
+
+        # [1차]: 모든 부모 역추적이 완료되면 수집된 전체 조상 커밋 리스트를 반환합니다.
+        # [2차]: 직속 부모부터 최초 루트 커밋까지 수집된 모든 과거 커밋 리스트를 반환합니다.
+        # [3차 예시]: 최종 반환: ['C', 'A'] (D의 조상은 C와 A!)
+        return ancestors
