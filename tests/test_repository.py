@@ -101,6 +101,51 @@ class TestMiniGitRepository(unittest.TestCase):
         author_results = self.repo.search_author("elena")
         self.assertEqual(len(author_results), 3)
 
+    def test_json_persistence_and_reload(self):
+        import os
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tf:
+            tmp_path = tf.name
+
+        try:
+            # 1. 저장소 생성 및 커밋/브랜치 수행 (자동 저장 검증)
+            repo1 = MiniGitRepository(storage_path=tmp_path)
+            repo1.init("tester")
+            c1, _ = repo1.commit("feat: initial setup")
+            repo1.branch("feature-x")
+            repo1.switch("feature-x")
+            c2, _ = repo1.commit("feat: add feature x")
+
+            # 2. 파일이 실제로 저장되었는지 확인
+            self.assertTrue(os.path.exists(tmp_path))
+            self.assertGreater(os.path.getsize(tmp_path), 0)
+
+            # 3. 새로운 인스턴스로 동일한 JSON 파일 복원
+            repo2 = MiniGitRepository(storage_path=tmp_path)
+            self.assertTrue(repo2.is_initialized())
+            self.assertEqual(repo2.state.current_author, "tester")
+            self.assertEqual(repo2.state.head_branch, "feature-x")
+            self.assertEqual(repo2.state.branches["main"], c1.hash)
+            self.assertEqual(repo2.state.branches["feature-x"], c2.hash)
+
+            # 4. 커밋 그래프 및 역색인 검색 무결성 검증
+            self.assertTrue(repo2.graph.contains(c1.hash))
+            self.assertTrue(repo2.graph.contains(c2.hash))
+            results = repo2.search_keyword("setup")
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results[0].hash, c1.hash)
+
+            # 5. 복원된 상태에서 추가 커밋 및 재저장 검증
+            c3, _ = repo2.commit("feat: another step")
+            repo3 = MiniGitRepository(storage_path=tmp_path)
+            self.assertEqual(repo3.state.branches["feature-x"], c3.hash)
+            self.assertEqual(len(repo3.log()), 3)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
 
 if __name__ == "__main__":
     unittest.main()
+

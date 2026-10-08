@@ -58,10 +58,10 @@ class MiniGitCLI:
 
     # [1차]: CLI 인스턴스를 초기화하며 리포지토리 의존성을 주입받거나 기본 생성합니다.
     # [2차]: 안내 데스크에 앉아 작업실 총괄 지배인과 무전기를 연결합니다.
-    def __init__(self, repo: Optional[MiniGitRepository] = None) -> None:
+    def __init__(self, repo: Optional[MiniGitRepository] = None, storage_path: Optional[str] = None) -> None:
         # [1차]: 주입된 리포지토리가 있으면 사용하고 없으면 새 MiniGitRepository를 생성합니다.
         # [2차]: 지정된 작업실이 있으면 그곳과 연결하고 없으면 새 작업실을 바로 차립니다.
-        self.repo = repo if repo is not None else MiniGitRepository()
+        self.repo = repo if repo is not None else MiniGitRepository(storage_path=storage_path)
 
     # [1차]: 입력된 한 줄의 명령 문자열을 파싱하고 실행하여 결과 문자열을 반환합니다.
     # [2차]: 손님이 건넨 한 줄의 요청 쪽지를 읽고 알맞은 업무를 처리한 후 결과지를 건네줍니다.
@@ -278,6 +278,10 @@ class MiniGitCLI:
         # [1차]: 프로그램 시작 안내 배너를 출력합니다.
         # [2차]: "Mini Git 창구에 오신 것을 환영합니다" 간판을 켭니다.
         print("Mini Git CLI v1.0.0 (Type 'exit' or 'quit' to close)")
+        # [1차]: 기존에 저장된 레포지토리가 복원되었으면 안내 메시지를 출력합니다.
+        # [2차]: 이전에 작업하던 서류가 남아있다면 현재 작업자와 도화지 상태를 알려줍니다.
+        if self.repo.is_initialized():
+            print(f"[*] Loaded repository for '{self.repo.state.current_author}' on branch '{self.repo.state.head_branch}'")
         # [1차]: 사용자가 exit 또는 Ctrl+C를 누를 때까지 무한 반복 루프를 돕니다.
         # [2차]: 손님이 퇴장하기 전까지 계속 대기하며 주문을 받습니다.
         while True:

@@ -67,6 +67,7 @@ python main.py
 ```
 
 실행 후 `mini-git> ` 프롬프트가 나타납니다.
+> 💾 **자동 파일 저장 & 복원 지원**: `main.py` 실행 시 모든 작업 내역(커밋, 브랜치, 상태)이 `minigit_repo.json`에 자동으로 실시간 저장되며, 프로그램을 종료했다가 다시 실행해도 이전 상태가 그대로 복원됩니다.
 
 ---
 
@@ -256,4 +257,245 @@ SEARCH --author=Evaluator
 SWITCH unknown-branch
 ```
 *(위 일괄 입력 후 화면에 출력된 해시를 보고 `PATH <해시1> <해시2>` 또는 `ANCESTORS <해시>`를 입력하여 경로/조상 탐색을 즉시 검증할 수 있습니다.)*
+
+---
+
+## 📖 8. Mini Git CLI 전체 명령어 상세 가이드 (Complete Command Reference)
+
+Mini Git CLI 환경(`mini-git> ` 프롬프트)에서 사용할 수 있는 모든 명령어의 **의미, 사용 방식, 실행 예시, 출력 결과, 주의사항**입니다.
+
+### 📌 요약 치트시트
+
+| 명령어 | 기본 문법 | 설명 |
+| :--- | :--- | :--- |
+| **`INIT`** | `INIT <user_name>` | 저장소 초기화, `main` 브랜치 생성 및 작성자 설정 |
+| **`BRANCH`** | `BRANCH <branch_name>` | 현재 HEAD 커밋을 가리키는 신규 브랜치 생성 |
+| **`SWITCH`** | `SWITCH <branch_name>` | HEAD를 지정한 브랜치로 전환 |
+| **`COMMIT`** | `COMMIT <message>` | 현재 브랜치에 신규 커밋 생성 및 역색인 등록 |
+| **`LOG`** | `LOG` | 부모가 먼저 출력되는 **위상 정렬(Topological Sort)** 로그 출력 |
+| **`LOG` (옵션)** | `LOG --sort-by=date\|author` | 수제 병합 정렬 기반 타임스탬프 또는 작성자순 로그 출력 |
+| **`PATH`** | `PATH <commit1> <commit2>` | 두 커밋 간의 무방향 **최단 경로(BFS)** 탐색 |
+| **`ANCESTORS`** | `ANCESTORS <commit_hash>` | 특정 커밋의 모든 조상 커밋 역추적 탐색 |
+| **`SEARCH`** | `SEARCH <keyword>` | $O(1)$ 역색인(Inverted Index) 기반 키워드 커밋 검색 |
+| **`SEARCH` (옵션)**| `SEARCH --author=<name>` | $O(1)$ 역색인 기반 작성자별 커밋 검색 |
+| **`EXIT` / `QUIT`** | `exit` 또는 `quit` | REPL 인터페이스 안전 종료 |
+
+---
+
+### 1. `INIT` - 저장소 초기화
+
+* **의미**: Mini Git 저장소를 새롭게 초기화합니다. 작업자(`user_name`)를 등록하고, 기본 브랜치인 `main`을 생성하며 HEAD 포인터를 `main`으로 설정합니다. 기존에 등록된 커밋 그래프와 색인 노트를 깨끗하게 리셋합니다.
+* **사용 방식**:
+  ```text
+  INIT <user_name>
+  ```
+  * 이름에 공백이 포함된 경우 큰따옴표(`"..."`)로 감싸야 합니다.
+* **실행 예시**:
+  ```text
+  mini-git> INIT "Alex Developer"
+  ```
+* **출력 결과**:
+  ```text
+  Initialized empty Mini Git repository for Alex Developer. Switched to branch 'main'.
+  ```
+* **주의사항**:
+  * `user_name`을 입력하지 않으면 `Invalid args: INIT requires <user_name>` 에러가 발생합니다.
+  * 저장소를 초기화하기 전에는 다른 명령어(`COMMIT`, `BRANCH` 등)를 실행할 수 없습니다 (`Repository not initialized`).
+
+---
+
+### 2. `BRANCH` - 브랜치 생성
+
+* **의미**: 현재 HEAD가 가리키고 있는 최신 커밋 위치에 새로운 브랜치 포인터를 생성합니다. (단, 현재 작업 브랜치가 바뀌지는 않습니다.)
+* **사용 방식**:
+  ```text
+  BRANCH <branch_name>
+  ```
+* **실행 예시**:
+  ```text
+  mini-git> BRANCH feature-login
+  ```
+* **출력 결과**:
+  ```text
+  Created branch 'feature-login' at a1b2c3d4.
+  ```
+  *(커밋이 아직 없는 초기 상태에서 생성 시 `at (initial)`로 표시됩니다.)*
+* **주의사항**:
+  * 이미 존재하는 브랜치 이름을 입력하면 `Branch already exists: <branch_name>` 에러가 반환됩니다.
+  * 브랜치 이름을 생략하면 `Invalid args: BRANCH requires <branch_name>` 에러가 반환됩니다.
+
+---
+
+### 3. `SWITCH` - 브랜치 전환
+
+* **의미**: 작업 대상 활성 브랜치(HEAD)를 지정한 브랜치로 전환합니다. 이후 실행되는 `COMMIT`은 전환된 브랜치에 기록됩니다.
+* **사용 방식**:
+  ```text
+  SWITCH <branch_name>
+  ```
+* **실행 예시**:
+  ```text
+  mini-git> SWITCH feature-login
+  ```
+* **출력 결과**:
+  ```text
+  Switched to branch 'feature-login'.
+  ```
+* **주의사항**:
+  * 존재하지 않는 브랜치를 입력하면 `Unknown branch: <branch_name>` 에러가 반환됩니다.
+
+---
+
+### 4. `COMMIT` - 커밋 생성 및 저장
+
+* **의미**: 현재 활성 브랜치의 최신 커밋을 부모(Parent)로 삼아 새로운 불변 커밋을 생성합니다. 고유한 SHA-1 단축 해시(8자리)를 발급하고, 커밋 메시지의 단어 토큰들과 작성자를 역색인(Inverted Index)에 자동 등록합니다.
+* **사용 방식**:
+  ```text
+  COMMIT <message>
+  ```
+  * 메시지에 공백이 포함되므로 반드시 큰따옴표(`"..."`)로 감싸야 합니다.
+* **실행 예시**:
+  ```text
+  mini-git> COMMIT "feat: add user authentication and jwt token"
+  ```
+* **출력 결과**:
+  ```text
+  [feature-login a1b2c3d4] feat: add user authentication and jwt token
+  ```
+* **주의사항**:
+  * 커밋 메시지를 비우거나 따옴표를 닫지 않으면 `Invalid args: COMMIT requires <message>` 또는 `parsing quotes failed` 에러가 반환됩니다.
+  * 저장소 내 동일 커밋에서 같은 단어가 여러 번 나와도 역색인에는 1회만 등록되어 중복을 방지합니다.
+
+---
+
+### 5. `LOG` - 커밋 히스토리 조회 (위상 정렬 및 수제 병합 정렬)
+
+* **의미**: 저장소에 기록된 전체 커밋 목록을 상세 정보(해시, 작성자, 생성일시, 부모 커밋, 메시지)와 함께 출력합니다.
+* **사용 방식**:
+  1. **기본 실행 (위상 정렬, Topological Sort)**:
+     ```text
+     LOG
+     ```
+     * **핵심 동작**: Kahn's 알고리즘 기반 위상 정렬을 통해 **"부모 커밋이 항상 자식 커밋보다 먼저 출력"**됩니다.
+  2. **정렬 옵션 지정 (수제 Merge Sort)**:
+     ```text
+     LOG --sort-by=date
+     LOG --sort-by=author
+     ```
+     * `--sort-by=date`: 타임스탬프 기준 오름차순(오래된 순) 정렬.
+     * `--sort-by=author`: 작성자 이름 기준 알파벳 오름차순 정렬.
+* **출력 결과 예시**:
+  ```text
+  commit a1b2c3d4
+  Author:    Alex Developer
+  Date:      2026-10-06 14:00:00 (1791266400.00)
+  Parents:   (root)
+      Initial commit: setup repository
+
+  commit 5e6f7a8b
+  Author:    Alex Developer
+  Date:      2026-10-06 14:05:00 (1791266700.00)
+  Parents:   a1b2c3d4
+      feat: add user authentication and jwt token
+  ```
+* **주의사항**:
+  * 지원하지 않는 정렬 옵션을 입력할 경우 `Invalid args: --sort-by must be date or author` 에러가 반환됩니다.
+  * 옵션을 2개 이상 입력하면 `Invalid args: LOG accepts at most one --sort-by option` 에러가 반환됩니다.
+
+---
+
+### 6. `PATH` - 두 커밋 간 무방향 최단 경로 탐색 (BFS)
+
+* **의미**: 커밋 간의 부모-자식 관계를 무방향 간선으로 간주하여, 두 커밋 사이를 가장 적은 간선으로 이동할 수 있는 **최단 경로(Shortest Path)**를 BFS로 탐색합니다. (경로 길이가 같은 동률 경로가 존재할 경우 사전순 최소 경로를 선택합니다.)
+* **사용 방식**:
+  ```text
+  PATH <commit1> <commit2>
+  ```
+* **실행 예시**:
+  ```text
+  mini-git> PATH a1b2c3d4 9c0d1e2f
+  ```
+* **출력 결과**:
+  ```text
+  a1b2c3d4 -> 5e6f7a8b -> 9c0d1e2f
+  ```
+  *(두 커밋 간 연결 경로가 없으면 `No path`가 출력됩니다.)*
+* **주의사항**:
+  * 존재하지 않는 커밋 해시를 입력하면 `Unknown commit: <commit_hash>` 에러가 반환됩니다.
+  * 인자가 2개가 아니면 `Invalid args: PATH requires <commit1> <commit2>` 에러가 반환됩니다.
+
+---
+
+### 7. `ANCESTORS` - 모든 조상 커밋 역추적 탐색
+
+* **의미**: 지정한 커밋으로부터 부모 포인터를 역방향으로 끝까지 추적하여, 해당 커밋의 계보에 존재하는 **모든 조상 커밋(부모, 조부모, 루트 커밋 등)**을 빠짐없이 수집하여 출력합니다.
+* **사용 방식**:
+  ```text
+  ANCESTORS <commit_hash>
+  ```
+* **실행 예시**:
+  ```text
+  mini-git> ANCESTORS 9c0d1e2f
+  ```
+* **출력 결과**:
+  ```text
+  commit 5e6f7a8b
+  Author:    Alex Developer
+  Date:      2026-10-06 14:05:00 (1791266700.00)
+  Parents:   a1b2c3d4
+      feat: add user authentication and jwt token
+
+  commit a1b2c3d4
+  Author:    Alex Developer
+  Date:      2026-10-06 14:00:00 (1791266400.00)
+  Parents:   (root)
+      Initial commit: setup repository
+  ```
+  *(루트 커밋처럼 조상이 없으면 `No ancestors.`가 출력됩니다.)*
+* **주의사항**:
+  * 존재하지 않는 커밋 해시를 입력하면 `Unknown commit: <commit_hash>` 에러가 반환됩니다.
+
+---
+
+### 8. `SEARCH` - 역색인(Inverted Index) 기반 초고속 검색
+
+* **의미**: 전체 커밋을 일일이 전수 조사($O(N)$)하지 않고, 단어 또는 작성자별로 사전에 구축된 **역색인 해시 테이블에서 $O(1)$ 시간 복잡도로 즉시 커밋 목록을 조회**합니다.
+* **사용 방식**:
+  1. **키워드 검색 (기본)**:
+     ```text
+     SEARCH <keyword>
+     ```
+     * 대소문자를 구분하지 않으며, 공백 단위로 분리된 토큰과 매칭됩니다.
+  2. **작성자 검색 (`--author=` 옵션)**:
+     ```text
+     SEARCH --author=<author_name>
+     ```
+     * 작성자 이름에 공백이 있을 경우 따옴표로 감쌉니다.
+* **실행 예시**:
+  ```text
+  mini-git> SEARCH login
+  mini-git> SEARCH --author="Alex Developer"
+  ```
+* **출력 결과**:
+  * 조건에 매칭되는 커밋 카드들이 `format_commit` 양식으로 출력됩니다.
+  * 매칭되는 커밋이 없으면 `No commits found.`가 출력됩니다.
+* **주의사항**:
+  * `--author=` 뒤에 이름을 지정하지 않으면 `Invalid args: --author requires a name` 에러가 반환됩니다.
+
+---
+
+### 9. `EXIT` / `QUIT` - REPL 세션 종료
+
+* **의미**: Mini Git 대화형 REPL 인터페이스를 안전하게 종료하고 터미널 콘솔로 빠져나옵니다.
+* **사용 방식**:
+  ```text
+  exit
+  quit
+  ```
+  *(대소문자 무관, 또는 `Ctrl+C`, `Ctrl+D` 입력 시에도 안전하게 탈출합니다.)*
+* **출력 결과**:
+  ```text
+  Exiting Mini Git.
+  ```
+
 

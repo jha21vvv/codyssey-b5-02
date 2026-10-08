@@ -16,9 +16,9 @@ from minigit.cli import MiniGitCLI
 # [1차]: 프로그램 실행의 엔트리포인트 함수를 정의합니다.
 # [2차]: 하루의 영업을 시작하는 개장 스위치입니다.
 def main() -> None:
-    # [1차]: CLI 객체 인스턴스를 생성합니다.
-    # [2차]: 안내 데스크 직원이 자리에 앉습니다.
-    cli = MiniGitCLI()
+    # [1차]: JSON 파일 영속화를 기본 지원하는 CLI 컨트롤러를 생성합니다.
+    # [2차]: 프로그램을 종료해도 작업 내용이 보존되도록 영구 보관 파일철을 연결합니다.
+    cli = MiniGitCLI(storage_path="minigit_repo.json")
     # [1차]: REPL 대화형 무한 루프를 가동합니다.
     # [2차]: 창구 문을 활짝 열고 손님들의 주문을 받기 시작합니다.
     cli.run_repl()

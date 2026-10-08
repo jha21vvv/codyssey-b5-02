@@ -30,6 +30,7 @@ class InvertedIndex:
 
     # [1차]: 객체 상태와 무관하게 문자열 토큰화만 수행하는 정적 메서드 데코레이터입니다.
     # [2차]: 외부 문서가 들어오면 단어 단위로 싹둑 잘라주는 전용 커터 칼 도구입니다.
+    # 색인화하기 위해, 일단 짤라서 색인용으로 만든후 여기에 만족하는지 다시 계산 시키는 방식
     @staticmethod
     def tokenize(message: str) -> List[str]:
         """Extracts normalized lowercase tokens split by whitespace."""
@@ -65,6 +66,7 @@ class InvertedIndex:
             if token not in seen_tokens:
                 # [1차]: 확인된 토큰을 방문 집합에 기록합니다.
                 # [2차]: 방금 본 단어의 체크리스트에 동그라미를 칩니다.
+                # 마이: 기존에 없었으면 신규로 등록함
                 seen_tokens.add(token)
 
                 # [1차]: 키워드 색인에 해당 단어 키가 없으면 빈 리스트로 초기화합니다.
@@ -74,6 +76,7 @@ class InvertedIndex:
 
                 # [1차]: 해당 단어의 커밋 해시 리스트 끝에 현재 커밋 해시를 추가합니다.
                 # [2차]: 그 단어 페이지 맨 아래에 이번 커밋 번호를 적어 넣습니다.
+                # 마이: 키워드에 해쉬 값으로 추ㅏ하는 과정
                 self._keyword_index[token].append(commit.hash)
 
         # [1차]: 작성자 이름 앞뒤 공백을 제거하고 소문자로 정규화합니다.

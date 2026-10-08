@@ -1,5 +1,10 @@
 """MiniGit repository management logic."""
 
+# [1차]: JSON 직렬화 및 파일 입출력을 위해 json과 os 표준 모듈을 가져옵니다.
+# [2차]: 작업실의 서류들을 영구 보관함에 넣고 꺼낼 수 있는 문서 보관 도구를 준비합니다.
+import json
+import os
+
 # [1차]: SHA-1 해시값 계산을 위해 hashlib 표준 라이브러리를 가져옵니다.
 # [2차]: 서류마다 위조 불가능한 고유 주민번호 도장을 파주기 위한 도장 기계를 준비합니다.
 import hashlib
@@ -34,9 +39,9 @@ from minigit.sorting import merge_sort
 class MiniGitRepository:
     """Core domain repository orchestrating models, indexing, sorting, and graph queries."""
 
-    # [1차]: 저장소 객체 인스턴스를 초기화하는 생성자입니다.
+    # [1차]: 저장소 객체 인스턴스를 초기화하는 생성자입니다 (선택적 JSON 파일 영속화 지원).
     # [2차]: 텅 빈 작업실 책상을 닦고 기본 도구들을 제자리에 배치합니다.
-    def __init__(self) -> None:
+    def __init__(self, storage_path: Optional[str] = None) -> None:
         # [1차]: 세션 상태 객체를 기본값으로 생성합니다.
         # [2차]: 작업실 출입 기록판을 새로 겁니다.
         self.state = RepositoryState()
@@ -49,6 +54,14 @@ class MiniGitRepository:
         # [1차]: 세션 내 커밋 생성 순번을 기록할 정수형 카운터입니다.
         # [2차]: 커밋이 몇 번째로 만들어졌는지 매기는 발급 번호표 기계입니다.
         self._commit_counter = 0
+        # [1차]: 데이터 영속화를 위한 JSON 파일 경로를 설정합니다.
+        # [2차]: 서류를 보관할 파일 보관함의 주소를 적어둡니다.
+        self.storage_path = storage_path
+
+        # [1차]: 영속화 경로가 주어지고 파일이 존재하면 기존 데이터를 복원합니다.
+        # [2차]: 이전에 저장해둔 보관 파일이 있으면 책상 위에 그대로 펼쳐 놓습니다.
+        if self.storage_path and os.path.exists(self.storage_path):
+            self.load_from_json(self.storage_path)
 
     # [1차]: 저장소가 INIT으로 초기화되었는지 여부를 반환합니다.
     # [2차]: 작업실 전등이 켜져서 작업 가능한 상태인지 확인합니다.
@@ -88,6 +101,10 @@ class MiniGitRepository:
         # [2차]: 번호표 발급기를 0번으로 초기화합니다.
         self._commit_counter = 0
 
+        # [1차]: 자동 저장 로직을 호출합니다.
+        # [2차]: 새로 열린 작업실 정보를 영구 보관함에 즉시 백업합니다.
+        self._auto_save()
+
         # [1차]: 초기화 완료 메시지 포맷팅 문자열을 반환합니다.
         # [2차]: "작업실이 준비되었습니다!"라고 알리는 안내 방송입니다.
         return f"Initialized empty Mini Git repository for {user_name}. Switched to branch 'main'."
@@ -120,6 +137,9 @@ class MiniGitRepository:
         # [1차]: 새 브랜치를 딕셔너리에 추가하고 현재 커밋 해시를 가리키도록 설정합니다.
         # [2차]: 새 도화지 책갈피를 꽂고 그 자리를 그대로 북마크합니다.
         self.state.branches[branch_name] = current_head_commit
+        # [1차]: 자동 저장 로직을 호출합니다.
+        # [2차]: 새 도화지 정보를 영구 보관함에 즉시 백업합니다.
+        self._auto_save()
         # [1차]: 브랜치 생성 성공 결과를 포맷팅하여 반환합니다.
         # [2차]: 새 도화지가 완성되었음을 안내합니다.
         return f"Created branch '{branch_name}' at {current_head_commit or '(initial)'}."
@@ -147,6 +167,9 @@ class MiniGitRepository:
             # [1차]: HEAD 브랜치 포인터를 대상 브랜치로 변경합니다.
             # [2차]: 현재 작업 도화지 명찰을 그 도화지로 바꿉니다.
             self.state.head_branch = branch_name
+            # [1차]: 자동 저장 로직을 호출합니다.
+            # [2차]: 변경된 활성 도화지 정보를 영구 보관함에 즉시 백업합니다.
+            self._auto_save()
             # [1차]: 브랜치 전환 성공 메시지를 반환합니다.
             # [2차]: "도화지를 교체했습니다"라고 알립니다.
             return f"Switched to branch '{branch_name}'."
@@ -237,6 +260,10 @@ class MiniGitRepository:
         # [2차]: 현재 도화지의 책갈피를 방금 그린 새 페이지로 옮깁니다.
         if self.state.head_branch is not None:
             self.state.branches[self.state.head_branch] = commit_hash
+
+        # [1차]: 자동 저장 로직을 호출합니다.
+        # [2차]: 새로운 커밋 서류와 브랜치 이동 결과를 영구 보관함에 즉시 백업합니다.
+        self._auto_save()
 
         # [1차]: 콘솔에 출력할 포맷팅된 커밋 생성 결과 문자열을 조립합니다.
         # [2차]: "[main 1a2b3c4d] 로그인 기능 추가" 형태의 알림 문구를 만듭니다.
@@ -417,3 +444,85 @@ class MiniGitRepository:
         # [1차]: 매칭된 커밋 객체 리스트를 반환합니다.
         # [2차]: 그 작가의 모든 작품 서류들을 건네줍니다.
         return commits
+
+    # [1차]: 저장소의 전체 상태와 커밋 목록을 JSON 파일로 직렬화하여 저장합니다.
+    # [2차]: 작업실의 모든 현황판과 서랍 속 서류들을 영구 보관 파일로 백업합니다.
+    def save_to_json(self, filepath: Optional[str] = None) -> None:
+        """Saves repository state and commits to a JSON file."""
+        target_path = filepath or self.storage_path
+        if not target_path:
+            return
+
+        commits_data = [
+            {
+                "hash": c.hash,
+                "message": c.message,
+                "author": c.author,
+                "timestamp": c.timestamp,
+                "parents": c.parents
+            }
+            for c in self.graph.all_commits()
+        ]
+
+        data = {
+            "state": {
+                "is_initialized": self.state.is_initialized,
+                "current_author": self.state.current_author,
+                "head_branch": self.state.head_branch,
+                "branches": self.state.branches
+            },
+            "commits": commits_data,
+            "commit_counter": self._commit_counter
+        }
+
+        with open(target_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    # [1차]: JSON 파일로부터 저장소 상태와 커밋들을 역직렬화하여 복원합니다.
+    # [2차]: 보관 파일에서 과거 작업 현황판과 모든 서류들을 불러와 서랍과 색인을 채웁니다.
+    def load_from_json(self, filepath: Optional[str] = None) -> bool:
+        """Loads repository state and commits from a JSON file."""
+        target_path = filepath or self.storage_path
+        # [1차]: 파일 경로가 없거나 파일이 존재하지 않거나 0바이트 빈 파일이면 False를 반환합니다.
+        # [2차]: 서류철이 없거나 텅 빈 백지라면 읽기를 중단합니다.
+        if not target_path or not os.path.exists(target_path) or os.path.getsize(target_path) == 0:
+            return False
+
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return False
+
+        state_data = data.get("state", {})
+        self.state = RepositoryState(
+            is_initialized=state_data.get("is_initialized", False),
+            current_author=state_data.get("current_author"),
+            head_branch=state_data.get("head_branch"),
+            branches=state_data.get("branches", {})
+        )
+
+        self.graph = CommitGraph()
+        self.index = InvertedIndex()
+
+        commits_data = data.get("commits", [])
+        for cd in commits_data:
+            c = Commit(
+                hash=cd["hash"],
+                message=cd["message"],
+                author=cd["author"],
+                timestamp=cd["timestamp"],
+                parents=cd.get("parents", [])
+            )
+            self.graph.add_commit(c)
+            self.index.add_commit(c)
+
+        self._commit_counter = data.get("commit_counter", len(commits_data))
+        return True
+
+    # [1차]: 영속화 경로가 설정되어 있는 경우 자동으로 상태를 저장합니다.
+    # [2차]: 서류나 현황판에 변동이 생길 때마다 자동으로 백업을 남깁니다.
+    def _auto_save(self) -> None:
+        """Automatically saves state if storage_path is configured."""
+        if self.storage_path:
+            self.save_to_json(self.storage_path)
